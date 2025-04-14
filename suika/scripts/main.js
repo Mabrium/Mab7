@@ -1,12 +1,55 @@
 // 모듈 불러오기
 import { FRUITS } from "./fruits.js";
 
+const loadTexture = async () => {
+
+    const textureList = [
+    'image/00_cherry.png',
+    'image/01_strawberry.png',
+    'image/02_grape.png',
+    'image/03_gyool.png',
+    'image/04_orange.png',
+    'image/05_apple.png',
+    'image/06_pear.png',
+    'image/07_peach.png',
+    'image/08_pineapple.png',
+    'image/09_melon.png',
+    'image/10_watermelon.png',
+    ]
+    
+    const load = textureUrl => {
+    const reader = new FileReader()
+    
+    return new Promise( resolve => {
+    reader.onloadend = ev => {
+    resolve(ev.target.result)
+    }
+    fetch(textureUrl).then( res => {
+    res.blob().then( blob => {
+    reader.readAsDataURL(blob)
+    })
+    })
+    })
+    }
+    
+    const ret = {}
+    
+    for ( let i = 0; i < textureList.length; i++ ) {
+    ret[textureList[i]] = await load(`${textureList[i]}`)
+    }
+    
+    return ret
+    }
+    
+    const textureMap = await loadTexture()
+    
 var Engine = Matter.Engine,
     Render = Matter.Render,
     Runner = Matter.Runner,
     Bodies = Matter.Bodies,
     World = Matter.World,
-    Body = Matter.Body;
+    Body = Matter.Body,
+    Events = Matter.Events;
 
 //엔진 선언
 const engine = Engine.create();
@@ -37,6 +80,7 @@ const ground = Bodies.rectangle(310, 820, 620, 60, {
     render: { fillStyle: '#E6B143'}
 })
 const topLine = Bodies.rectangle(310, 150, 620, 2, {
+    name : "topLine",
     isStatic: true, 
     isSensor: true,
     render: { fillStyle: '#E6B143'}
@@ -53,6 +97,7 @@ let currentFruit = null;
 
 let disableAction = false;
 
+let interval = null;
 
 function addFruit() {
     
@@ -78,16 +123,28 @@ window.onkeydown = (event) => {
         return;
     switch(event.code){
         case "KeyA":
-            Body.setPosition(currentBody, {
-                x: currentBody.position.x - 10,
-                y: currentBody.position.y
-            })
+            if(interval)
+                return;
+            interval = setInterval(() => {
+                if(currentBody.position.x - currentFruit.radius > 30){
+                    Body.setPosition(currentBody, {
+                        x: currentBody.position.x - 1,
+                        y: currentBody.position.y
+                    })
+                }
+            }, 5)
             break;
         case "KeyD":
-            Body.setPosition(currentBody, {
-                x: currentBody.position.x + 10,
-                y: currentBody.position.y
-            })
+            if(interval)
+                return;
+            interval = setInterval(() => {
+                if(currentBody.position.x + currentFruit.radius < 590){
+                    Body.setPosition(currentBody, {
+                        x: currentBody.position.x + 1,
+                        y: currentBody.position.y
+                    })
+                }
+            }, 5)
             break;
         case "Enter":
             currentBody.isSleeping = false;
@@ -99,4 +156,42 @@ window.onkeydown = (event) => {
             break;
     }
 }
+
+window.onkeyup = (event) => {
+    switch(event.code) {
+        case "KeyA":
+        case "KeyD":
+            clearInterval(interval);
+            interval = null
+    }
+}
+Events.on(engine, "collisionStart", (event) => {
+    event.pairs.forEach((collision) => {
+        if(collision.bodyA.index == collision.bodyB.index){
+            const index = collision.bodyA.index;
+
+            World.remove(world, [collision.bodyA, collision.bodyB]);
+            const newFruit = FRUITS[index + 1];
+            const newBody = Bodies.circle(
+                collision.collision.supports[0].x,
+                collision.collision.supports[0].y,
+                newFruit.radius,
+                {
+                    index : index + 1,
+                    render : {sprite: {texture: `${newFruit.name}.png`}
+                    }
+                }
+            )
+            World.add(world, newBody);
+
+            if(newBody.index === 10){
+                alert("SIUUUUUBAK");
+                disableAction = true;
+            }
+        }
+        if(!disableAction && (collision.bodyA.name == "topLine" || collision.bodyB.name == "topLine")){
+            alert("GameOver");
+        }
+    })
+})
 addFruit();
